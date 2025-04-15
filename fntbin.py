@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-from qdbg import *
+from qtdbg import *
 from PySide6.QtWidgets import (
     QApplication,
     QMainWindow,
@@ -261,14 +261,14 @@ class MainWindow(QMainWindow):
 
 if __name__ == "__main__":
     app = QApplication(sys.argv)
-    
+
     # Load and apply stylesheet
-    
-    
-    
+
+
+
     #with open("/Users/albertfreeman/Projects/fntbin/fntbin.qss", "r") as f:
     #   app.setStyleSheet(f.read())
-    
+
     window = MainWindow()
     window.show()
     sys.exit(app.exec())
