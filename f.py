@@ -1,3 +1,4 @@
+from typing import override
 from qtdbg import *
 import sys
 import os
@@ -27,7 +28,6 @@ FONT_SIZES = [6, 8, 10, 12, 16, 24, 36, 48, 64, 72]
 SAMPLE_TEXT = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789"
 WINDOW_MARGINS = 8
 WIDGET_SPACING = 8
-
 
 class FontItem(QWidget):
     def __init__(self, font:QFont()):
@@ -69,6 +69,10 @@ class FontItem(QWidget):
             name += f" - {subfamily}"
 
         return name
+    
+    @override
+    def __str__(self) -> str:
+        return f"{self.font_name} - {self.font_size}px"
 
 
 class FontGroup:
@@ -215,8 +219,6 @@ class MainWindow(QMainWindow):
         if len(font_list) > 0:
             for item in font_list:
                 font_list_layout.addWidget(item)
-                if DEBUG:
-                    console.debug(f"Font: {item.font_name}")
         else:
             font_list_layout.addWidget(QLabel("No fonts found"))
 
@@ -235,8 +237,9 @@ class MainWindow(QMainWindow):
         fonts_item_list = []
         db = QFontDatabase()
         for font_id in db.families():
-            font_frame = FontItem(QFont(font_id))
-            fonts_item_list.append(font_frame)
+            font_item = FontItem(QFont(font_id))
+            fonts_item_list.append(font_item)
+            console.debug(f"Font: {font_item}")
         return fonts_item_list
 
     def set_status_message(self, text):
