@@ -14,14 +14,15 @@ from PySide6.QtWidgets import (
     QVBoxLayout,
     QWidget,
 )
-from PySide6.QtGui import QFont, QWindow
+from PySide6.QtGui import QFont, QFontDatabase, QWindow
 from PySide6.QtCore import Qt
 from fontmeta import FontMeta
 
+SCRIPT_TITLE = "fntbin"
 FONT_DIRECTORY = "~/Library/Fonts"
 FONT_NAME_FONT = QFont("Arial", 14)
 DEFAULT_SAMPLE_SIZE = 24
-FONT_PATH_FONT = QFont("Arial", 8)
+FONT_PATH_FONT = QFont("Arial Bold", 11)
 FONT_SIZES = [6, 8, 10, 12, 16, 24, 36, 48, 64, 72]
 SAMPLE_TEXT = "ABCDEFGHIJKLMNOPQRSTUVWXYZ\nabcdefghijklmnopqrstuvwxyz\n0123456789"
 WINDOW_MARGINS = 8
@@ -29,36 +30,45 @@ WIDGET_SPACING = 8
 
 
 class FontItem(QWidget):
-    def __init__(self, path, metadata):
+    def __init__(self, font:QFont()):
         super().__init__()
 
-        if DEBUG:
-            console.debug(f"Family: {metadata['font_family']} - {metadata['subfamily']}")
-            console.debug(f"Full Name: {metadata['full_font_name']}")
-            console.debug(f"Filename: {os.path.basename(path)}\n")
+        self.font = font
+        self.font_name = font.family()
+        self.font_size = DEFAULT_SAMPLE_SIZE
 
-        self.font_name = metadata["full_font_name"]
-        self.font_path = path
-        self.font = QFont(self.font_name, DEFAULT_SAMPLE_SIZE)
-
-        layout = QVBoxLayout(self)
-        layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(WIDGET_SPACING)
+        self.widget = QWidget()
+        self.widget_layout = QVBoxLayout(self.widget)
+        self.widget_layout.setContentsMargins(0, 0, 0, 0)
+        self.widget_layout.setSpacing(WIDGET_SPACING)
 
         # font name
-        name_label = QLabel(self.font_name)
-        name_label.setFont(FONT_NAME_FONT)
-        layout.addWidget(name_label)
+        font_name_label = QLabel()
+        font_name_label.setFont(FONT_NAME_FONT)
+        font_name_label.setText(self.font_name)
+        self.widget_layout.addWidget(font_name_label)
 
-        # font sample
-        self.sample_label = QLabel(SAMPLE_TEXT)
-        self.sample_label.setFont(QFont(self.font_name, DEFAULT_SAMPLE_SIZE))
-        layout.addWidget(self.sample_label)
+        # sample text
+        self.sample_text = QLabel()
+        self.sample_text.setFont(QFont(self.font_name, self.font_size))
+        self.sample_text.setText(SAMPLE_TEXT)
+        self.widget_layout.addWidget(self.sample_text)
 
-        # font path
-        path_label = QLabel(self.font_path)
-        path_label.setFont(FONT_PATH_FONT)
-        layout.addWidget(path_label)
+    def set_sample_font_size(self, size):
+        self.font_size = size
+        self.sample_text.setFont(QFont(self.font_name, self.font_size))
+
+
+    def make_name(self, font_family, subfamily, path):
+        if font_family == "":
+            name = os.path.basename(path)
+        else:
+            name = font_family
+
+        if subfamily != "":
+            name += f" - {subfamily}"
+
+        return name
 
 
 class FontGroup:
@@ -84,21 +94,26 @@ class FontGroup:
             font.set_sample_font_size(size)
 
 
-class AboutWindow(QWindow):
+class AboutWindow(QWidget):
     def __init__(self):
         super().__init__()
-        self.setTitle("About")
-        layout = QVBoxLayout(self)
-        self.setLayout(layout)
+        self.setWindowTitle(f"{SCRIPT_TITLE} - About")
+        self.setMinimumSize(320, 240)
+        self.setWindowModality(Qt.ApplicationModal)
+        self.setWindowFlag(Qt.WindowContextHelpButtonHint, False)
+        widget_layout = QVBoxLayout()
+        self.setLayout(widget_layout)
 
         # add contents
-        layout.addWidget(QLabel("fntbin"))
-        layout.addWidget(QLabel("Version 0.1"))
-        layout.addWidget(QLabel("Copyright 2023"))
-        layout.addWidget(QLabel("Author: Albert Freeman"))
-        layout.addWidget(QLabel("License: GPLv3"))
-        layout.addWidget(QLabel("Website: URL_ADDRESS.com"))
-        layout.addWidget(QLabel("Website: URL_ADDRESS.com"))
+        widget_layout.addWidget(QLabel("fntbin"))
+        widget_layout.addWidget(QLabel("Version 0.1"))
+        widget_layout.addWidget(QLabel("Copyright 2023"))
+        widget_layout.addWidget(QLabel("Author: Albert Freeman"))
+        widget_layout.addWidget(QLabel("License: GPLv3"))
+        widget_layout.addWidget(QLabel("Website: URL_ADDRESS.com"))
+        widget_layout.addWidget(QLabel("Website: URL_ADDRESS.com"))
+
+        self.setFocus()
 
 
 class MainWindow(QMainWindow):
@@ -109,10 +124,11 @@ class MainWindow(QMainWindow):
 
         # Create menu bar
         menu_bar = self.menuBar()
-        # menu_bar.setNativeMenuBar(False)
+        if not DEBUG:
+            menu_bar.setNativeMenuBar(False)
 
         # File menu
-        file_menu = menu_bar.addMenu(sys.argv[0])
+        file_menu = menu_bar.addMenu(f"{SCRIPT_TITLE}")
         about_action = file_menu.addAction("About")
         about_action.triggered.connect(self.show_about)
         settings_action = file_menu.addAction("Settings")
@@ -162,7 +178,6 @@ class MainWindow(QMainWindow):
 
         # font list
         font_list_display = QWidget()
-
         scroll_layout = QScrollArea()
         scroll_layout.setWidgetResizable(True)
         scroll_layout.setVerticalScrollBarPolicy(Qt.ScrollBarAlwaysOn)
@@ -194,12 +209,14 @@ class MainWindow(QMainWindow):
         wells_layout.addWidget(self.well_2)
 
         # load fonts
-        self.set_status_message(f"Loading fonts from {FONT_DIRECTORY}")
-        font_list = self.get_fonts(FONT_DIRECTORY)
+        self.set_status_message(f"Loading fonts ...")
+        font_list = self.update_fonts()
         font_list_layout = QVBoxLayout(font_list_display)
         if len(font_list) > 0:
-            for font in font_list:
-                font_list_layout.addWidget(font)
+            for item in font_list:
+                font_list_layout.addWidget(item)
+                if DEBUG:
+                    console.debug(f"Font: {item.font_name}")
         else:
             font_list_layout.addWidget(QLabel("No fonts found"))
 
@@ -214,21 +231,13 @@ class MainWindow(QMainWindow):
     def change_font_size(self, index):
         pass
 
-    def get_fonts(self, directory):
-        directory = os.path.expanduser(directory)
-        if not os.path.exists(directory):
-            self.set_status_message(f"Directory {directory} does not exist")
-            return
-
-        fonts = []
-        for file in os.listdir(directory):
-            if file.endswith(".ttf") or file.endswith(".otf"):
-                metadata = FontMeta(os.path.join(directory, file)).get_data()
-                if metadata is None:
-                    console.error(f"Failed to load font {file}")
-                    continue
-                fonts.append(FontItem(os.path.join(directory, file), metadata))
-        return fonts
+    def update_fonts(self):
+        fonts_item_list = []
+        db = QFontDatabase()
+        for font_id in db.families():
+            font_frame = FontItem(QFont(font_id))
+            fonts_item_list.append(font_frame)
+        return fonts_item_list
 
     def set_status_message(self, text):
         self.status_message.setText(text)
@@ -243,9 +252,9 @@ class MainWindow(QMainWindow):
         self.set_status_message("Settings dialog (not implemented)")
 
     def show_about(self):
-        self.set_status_message("About dialog (not implemented)")
-        # a = AboutWindow()
-        # a.show()
+        #self.set_status_message("About dialog (not implemented)")
+        a = AboutWindow()
+        a.show()
 
 
 def main():
